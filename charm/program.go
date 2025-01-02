@@ -1,8 +1,10 @@
 package charm
 
 import (
+	"HackerNewsCLI/api"
 	"fmt"
 	tea "github.com/charmbracelet/bubbletea"
+	"os"
 	"os/exec"
 	"runtime"
 )
@@ -21,6 +23,21 @@ func InitialModel(titles []string, links []string) model {
 	}
 }
 
+func StartProgram() {
+	stories := api.GetStories()
+
+	if len(stories) == 0 {
+		fmt.Fprintf(os.Stderr, "No stories found.\n")
+		os.Exit(1)
+	}
+
+	p := tea.NewProgram(InitialModel(parseStoryTitles(stories), parseStoryLinks(stories)))
+	if err := p.Start(); err != nil {
+		fmt.Fprintf(os.Stderr, "Error starting program: %v\n", err)
+		os.Exit(1)
+	}
+}
+
 func (m model) Init() tea.Cmd {
 	return nil
 }
@@ -31,15 +48,17 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "q", "ctrl+c":
 			return m, tea.Quit
-		case "up", "k":
+		case "up":
 			if m.cursor > 0 {
 				m.cursor--
 			}
-		case "down", "j":
+		case "down":
 			if m.cursor < len(m.items)-1 {
 				m.cursor++
 			}
-
+		case "r":
+			refreshStories(m)
+			return m, nil
 		case "enter", "return":
 			openBrowser(m.links[m.cursor])
 		}
@@ -70,6 +89,30 @@ func openBrowser(url string) error {
 	return nil
 }
 
+func refreshStories(m model) model {
+	stories := api.GetStories()
+	m.items = parseStoryTitles(stories)
+	m.links = parseStoryLinks(stories)
+	m.cursor = 0
+	return m
+}
+
+func parseStoryTitles(stories []api.Story) []string {
+	var titles []string
+	for _, story := range stories {
+		titles = append(titles, story.Title)
+	}
+	return titles
+}
+
+func parseStoryLinks(stories []api.Story) []string {
+	var links []string
+	for _, story := range stories {
+		links = append(links, story.URL)
+	}
+	return links
+}
+
 func (m model) View() string {
 	s := "Latest HN articles:\n\n"
 
@@ -81,6 +124,6 @@ func (m model) View() string {
 		s += fmt.Sprintf("%s %s\n", cursor, item)
 	}
 
-	s += "\n[Use ↑/↓ or j/k to navigate, q to quit]\n"
+	s += "\n[Use ↑/↓ to navigate, r to refresh, q to quit]\n"
 	return s
 }
