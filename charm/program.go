@@ -2,6 +2,7 @@ package charm
 
 import (
 	"HackerNewsCLI/api"
+	"HackerNewsCLI/utils"
 	"fmt"
 	tea "github.com/charmbracelet/bubbletea"
 	"os"
@@ -10,16 +11,18 @@ import (
 )
 
 type model struct {
-	cursor int
-	items  []string
-	links  []string
+	cursor  int
+	items   []string
+	links   []string
+	loading bool
 }
 
 func InitialModel(titles []string, links []string) model {
 	return model{
-		cursor: 0,
-		items:  titles,
-		links:  links,
+		cursor:  0,
+		items:   titles,
+		links:   links,
+		loading: false,
 	}
 }
 
@@ -31,7 +34,7 @@ func StartProgram() {
 		os.Exit(1)
 	}
 
-	p := tea.NewProgram(InitialModel(parseStoryTitles(stories), parseStoryLinks(stories)))
+	p := tea.NewProgram(InitialModel(utils.ParseStoryTitles(stories), utils.ParseStoryLinks(stories)))
 	if err := p.Start(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error starting program: %v\n", err)
 		os.Exit(1)
@@ -57,13 +60,45 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.cursor++
 			}
 		case "r":
-			refreshStories(m)
-			return m, nil
+			m.loading = true
+			return m, refreshStoriesCmd
 		case "enter", "return":
 			openBrowser(m.links[m.cursor])
 		}
+
+	case []api.Story:
+		m.items = utils.ParseStoryTitles(msg)
+		m.links = utils.ParseStoryLinks(msg)
+		m.cursor = 0
+		m.loading = false
+		return m, nil
 	}
+
 	return m, nil
+}
+
+func (m model) View() string {
+	if m.loading {
+		return "Loading..."
+	}
+
+	s := "Latest HN articles:\n\n"
+
+	for i, item := range m.items {
+		cursor := " "
+		if m.cursor == i {
+			cursor = ">"
+		}
+		s += fmt.Sprintf("%s %s\n", cursor, item)
+	}
+
+	s += "\n[Use ↑/↓ to navigate, r to refresh, q to quit]\n"
+	return s
+}
+
+func refreshStoriesCmd() tea.Msg {
+	stories := api.GetStories()
+	return stories
 }
 
 func openBrowser(url string) error {
@@ -87,43 +122,4 @@ func openBrowser(url string) error {
 		return fmt.Errorf("failed to execute command %s: %v", cmd, err)
 	}
 	return nil
-}
-
-func refreshStories(m model) model {
-	stories := api.GetStories()
-	m.items = parseStoryTitles(stories)
-	m.links = parseStoryLinks(stories)
-	m.cursor = 0
-	return m
-}
-
-func parseStoryTitles(stories []api.Story) []string {
-	var titles []string
-	for _, story := range stories {
-		titles = append(titles, story.Title)
-	}
-	return titles
-}
-
-func parseStoryLinks(stories []api.Story) []string {
-	var links []string
-	for _, story := range stories {
-		links = append(links, story.URL)
-	}
-	return links
-}
-
-func (m model) View() string {
-	s := "Latest HN articles:\n\n"
-
-	for i, item := range m.items {
-		cursor := " "
-		if m.cursor == i {
-			cursor = ">"
-		}
-		s += fmt.Sprintf("%s %s\n", cursor, item)
-	}
-
-	s += "\n[Use ↑/↓ to navigate, r to refresh, q to quit]\n"
-	return s
 }
