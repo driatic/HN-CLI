@@ -13,7 +13,7 @@ const (
 	itemDetails = baseURL + "/item/%d.json"
 )
 
-// todo: add pagin param
+// todo: add paging param
 func GetStories() []Story {
 	storyIDs := GetStoryIDs(newStories)
 
