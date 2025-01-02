@@ -74,9 +74,9 @@ func (m model) View() string {
 	s := "Latest HN articles:\n\n"
 
 	for i, item := range m.items {
-		cursor := " " // no cursor
+		cursor := " "
 		if m.cursor == i {
-			cursor = ">" // cursor
+			cursor = ">"
 		}
 		s += fmt.Sprintf("%s %s\n", cursor, item)
 	}
